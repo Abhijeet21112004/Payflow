@@ -50,6 +50,11 @@
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
+		<dependency>
+			<!-- Only the password-hashing part of Spring Security (BCrypt), not the whole framework -->
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-crypto</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.postgresql</groupId>
