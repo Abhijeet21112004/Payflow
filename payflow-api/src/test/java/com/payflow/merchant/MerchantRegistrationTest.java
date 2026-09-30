@@ -4,42 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Map;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import com.payflow.TestcontainersConfiguration;
+import com.payflow.ApiTestSupport;
 import com.payflow.common.Hashing;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
-
-/** Starts the real app on a random port with a throwaway Postgres, and sends it real HTTP requests. */
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class MerchantRegistrationTest {
-
-    @LocalServerPort
-    int port;
-
-    @Autowired
-    JdbcTemplate jdbc;
-
-    @Autowired
-    JsonMapper json;
-
-    private final HttpClient http = HttpClient.newHttpClient();
+class MerchantRegistrationTest extends ApiTestSupport {
 
     @Test
     void registerReturnsKeysAndStoresOnlyHashes() throws Exception {
@@ -49,10 +22,9 @@ class MerchantRegistrationTest {
                 Map.of("name", "Chai Point", "email", email, "password", "mango12345"));
 
         assertEquals(201, response.statusCode());
-        JsonNode body = json.readTree(response.body());
-        String apiKey = body.get("api_key").asString();
+        String apiKey = body(response).get("api_key").asString();
         assertTrue(apiKey.startsWith("pf_live_"));
-        assertTrue(body.get("webhook_secret").asString().startsWith("whsec_"));
+        assertTrue(body(response).get("webhook_secret").asString().startsWith("whsec_"));
 
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM merchants WHERE email = ?", email);
 
@@ -75,7 +47,7 @@ class MerchantRegistrationTest {
                 Map.of("name", "B", "email", email.toUpperCase(), "password", "mango12345"));
 
         assertEquals(409, response.statusCode());
-        assertEquals("email_taken", json.readTree(response.body()).get("error").get("code").asString());
+        assertEquals("email_taken", errorCode(response));
     }
 
     @Test
@@ -84,18 +56,6 @@ class MerchantRegistrationTest {
                 Map.of("name", "Chai Point", "email", uniqueEmail(), "password", "short"));
 
         assertEquals(400, response.statusCode());
-        assertEquals("invalid_request", json.readTree(response.body()).get("error").get("code").asString());
-    }
-
-    private HttpResponse<String> post(String path, Map<String, String> body) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
-                .build();
-        return http.send(request, HttpResponse.BodyHandlers.ofString());
-    }
-
-    private static String uniqueEmail() {
-        return "shop-" + UUID.randomUUID() + "@example.com";
+        assertEquals("invalid_request", errorCode(response));
     }
 }
