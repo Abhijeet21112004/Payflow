@@ -52,6 +52,17 @@ public class PaymentRepository {
                 .stream().findFirst();
     }
 
+    /**
+     * Reads a payment AND locks its row until the current transaction ends.
+     * Any other transaction that tries to lock the same payment waits here until this one commits,
+     * then reads the fresh, updated row. This is what stops double-capture and over-refund.
+     */
+    public Optional<Payment> findForUpdate(UUID paymentId, UUID merchantId) {
+        return jdbc.query("SELECT * FROM payments WHERE id = ? AND merchant_id = ? FOR UPDATE",
+                        PAYMENT, paymentId, merchantId)
+                .stream().findFirst();
+    }
+
     public Payment updateStatus(UUID paymentId, String status, String failureReason) {
         return jdbc.queryForObject("""
                 UPDATE payments SET status = ?, failure_reason = ?, updated_at = now()

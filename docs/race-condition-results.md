@@ -42,4 +42,34 @@ Two different kinds of corruption at once:
 
 ## After: `SELECT … FOR UPDATE` + database backstops
 
-<!-- filled in by the fix commit -->
+The fix is one changed line in each of capture and refund: the payment is read with
+`SELECT … FOR UPDATE`, which locks that row until the transaction commits. A second request for the
+same payment waits at that line, then reads the row *after* the first one's changes.
+
+```
+=== Capture race: 50 parallel captures of one ₹500.00 payment ===
+successful captures  : 1   (expected 1)
+rejected with 409    : 49   (expected 49)
+ledger transactions  : 1   (expected 1)
+merchant balance     : ₹500.00   (expected ₹500.00)
+```
+
+```
+=== Refund race: 10 parallel ₹100.00 refunds of one ₹500.00 payment ===
+successful refunds         : 5   (expected 5)
+refunded per the ledger    : ₹500.00   (expected ₹500.00)
+refunded per the payment   : ₹500.00   (expected ₹500.00)
+payment status             : refunded   (expected refunded)
+merchant balance           : ₹0.00   (expected ₹0.00)
+```
+
+Two database constraints (migration `V4`) back the lock up, so even buggy code can't corrupt money
+(proven by `SafetyConstraintsTest`):
+
+| Constraint | Stops |
+|---|---|
+| `UNIQUE (type, reference_id)` on `ledger_transactions` | a payment being captured into the ledger twice |
+| `CHECK (refunded_amount BETWEEN 0 AND amount)` on `payments` | refunding more than the payment's amount |
+
+Only the *payment* row is locked, not the merchant's account, so payments of different customers
+still run fully in parallel.

@@ -51,7 +51,8 @@ public class PaymentService {
 
     public Payment capture(UUID merchantId, UUID paymentId) {
         return tx.execute(status -> {
-            Payment payment = payments.find(paymentId, merchantId).orElseThrow(PaymentService::notFound);
+            // FOR UPDATE: parallel captures of this payment queue up here, one at a time.
+            Payment payment = payments.findForUpdate(paymentId, merchantId).orElseThrow(PaymentService::notFound);
 
             if (!PaymentStatus.AUTHORIZED.equals(payment.status())) {
                 throw new ApiException(HttpStatus.CONFLICT, "invalid_state",
@@ -65,7 +66,9 @@ public class PaymentService {
 
     public RefundResponse refund(UUID merchantId, UUID paymentId, RefundPayment request) {
         return tx.execute(status -> {
-            Payment payment = payments.find(paymentId, merchantId).orElseThrow(PaymentService::notFound);
+            // FOR UPDATE: parallel refunds of this payment queue up here, so each one sees
+            // the refunded_amount left by the one before it.
+            Payment payment = payments.findForUpdate(paymentId, merchantId).orElseThrow(PaymentService::notFound);
 
             if (!PaymentStatus.isRefundable(payment.status())) {
                 throw new ApiException(HttpStatus.CONFLICT, "invalid_state",
