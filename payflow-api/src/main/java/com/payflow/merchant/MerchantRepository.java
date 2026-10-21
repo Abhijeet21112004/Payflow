@@ -51,6 +51,12 @@ public class MerchantRepository {
                 email).stream().findFirst();
     }
 
+    public Optional<UUID> findIdByApiKeyHash(String apiKeyHash) {
+        return jdbc.query("SELECT id FROM merchants WHERE api_key_hash = ?",
+                (rs, rowNum) -> rs.getObject("id", UUID.class),
+                apiKeyHash).stream().findFirst();
+    }
+
     public Optional<Merchant> findById(UUID id) {
         return jdbc.query("SELECT * FROM merchants WHERE id = ?", MERCHANT, id).stream().findFirst();
     }
