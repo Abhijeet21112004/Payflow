@@ -14,7 +14,7 @@ class MerchantLoginTest extends ApiTestSupport {
     private String email;
 
     @BeforeEach
-    void registerMerchant() throws Exception {
+    void registerOneMerchant() throws Exception {
         email = uniqueEmail();
         post("/merchants/register", Map.of("name", "Chai Point", "email", email, "password", "mango12345"));
     }

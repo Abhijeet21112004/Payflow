@@ -8,10 +8,12 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.payflow.auth.JwtService;
 import com.payflow.common.ApiException;
 import com.payflow.common.Hashing;
+import com.payflow.ledger.LedgerService;
 
 /** Merchant logic: registration (hash → generate keys → save) and login (check password → issue token). */
 @Service
@@ -21,14 +23,18 @@ public class MerchantService {
 
     private final MerchantRepository merchants;
     private final JwtService jwtService;
+    private final LedgerService ledgerService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final String dummyHash = passwordEncoder.encode("dummy-password-for-timing");
 
-    public MerchantService(MerchantRepository merchants, JwtService jwtService) {
+    public MerchantService(MerchantRepository merchants, JwtService jwtService, LedgerService ledgerService) {
         this.merchants = merchants;
         this.jwtService = jwtService;
+        this.ledgerService = ledgerService;
     }
 
+    // One transaction: the merchant row and their ledger account are created together or not at all.
+    @Transactional
     public RegisterResponse register(RegisterRequest request) {
         String email = request.email().trim().toLowerCase();
 
@@ -51,6 +57,7 @@ public class MerchantService {
             throw new ApiException(HttpStatus.CONFLICT, "email_taken",
                     "A merchant with this email already exists");
         }
+        ledgerService.openMerchantAccount(merchantId);
 
         return new RegisterResponse(merchantId, apiKey, webhookSecret);
     }
