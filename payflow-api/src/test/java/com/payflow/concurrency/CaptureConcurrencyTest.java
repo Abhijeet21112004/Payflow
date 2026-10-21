@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import com.payflow.ApiTestSupport;
+import com.payflow.Concurrently;
 
 /**
  * Property P1: N parallel captures of ONE payment must move money exactly once.

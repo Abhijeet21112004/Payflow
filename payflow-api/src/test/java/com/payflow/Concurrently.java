@@ -1,4 +1,4 @@
-package com.payflow.concurrency;
+package com.payflow;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,12 +12,12 @@ import java.util.concurrent.Future;
  * Runs N tasks at the same instant. Every thread waits at a starting gate (a CountDownLatch);
  * when all are ready the gate opens and they all fire together, which maximises the chance of a race.
  */
-final class Concurrently {
+public final class Concurrently {
 
     private Concurrently() {
     }
 
-    static <T> List<T> run(int threads, Callable<T> task) throws Exception {
+    public static <T> List<T> run(int threads, Callable<T> task) throws Exception {
         CountDownLatch ready = new CountDownLatch(threads);
         CountDownLatch gate = new CountDownLatch(1);
 
