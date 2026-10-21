@@ -1,5 +1,6 @@
 package com.payflow.merchant;
 
+import java.net.URI;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.UUID;
@@ -78,6 +79,22 @@ public class MerchantService {
 
         String token = jwtService.issue(credentials.get().id());
         return new LoginResponse(token, jwtService.ttlSeconds());
+    }
+
+    public Merchant setWebhookUrl(UUID merchantId, String webhookUrl) {
+        URI uri;
+        try {
+            uri = URI.create(webhookUrl.trim());
+        } catch (IllegalArgumentException e) {
+            uri = null;
+        }
+        if (uri == null || uri.getHost() == null
+                || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "invalid_webhook_url",
+                    "webhook_url must be an http(s) URL, e.g. https://shop.example.com/webhooks/payflow");
+        }
+        merchants.updateWebhookUrl(merchantId, uri.toString());
+        return get(merchantId);
     }
 
     public Merchant get(UUID merchantId) {

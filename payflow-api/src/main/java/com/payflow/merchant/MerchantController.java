@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.payflow.auth.JwtAuthFilter;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 
 @RestController
 @RequestMapping("/merchants")
@@ -40,5 +42,15 @@ public class MerchantController {
     @GetMapping("/me")
     public Merchant me(@RequestAttribute(JwtAuthFilter.MERCHANT_ID) UUID merchantId) {
         return merchantService.get(merchantId);
+    }
+
+    /** Where PayFlow should send this merchant's webhooks. */
+    @PutMapping("/me/webhook-url")
+    public Merchant setWebhookUrl(@RequestAttribute(JwtAuthFilter.MERCHANT_ID) UUID merchantId,
+                                  @Valid @RequestBody WebhookUrlRequest request) {
+        return merchantService.setWebhookUrl(merchantId, request.webhookUrl());
+    }
+
+    public record WebhookUrlRequest(@NotBlank String webhookUrl) {
     }
 }

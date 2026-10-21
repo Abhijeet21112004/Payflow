@@ -15,6 +15,7 @@ import com.payflow.ledger.LedgerService;
 import com.payflow.payment.PaymentRequests.CreatePayment;
 import com.payflow.payment.PaymentRequests.RefundPayment;
 import com.payflow.payment.PaymentRequests.RefundResponse;
+import com.payflow.webhook.WebhookService;
 
 /**
  * Create, capture and refund. Database transactions are opened explicitly with {@code tx.execute(...)},
@@ -22,7 +23,7 @@ import com.payflow.payment.PaymentRequests.RefundResponse;
  *
  * Every method that moves money:
  *   1. reserves the Idempotency-Key (or returns the stored reply if this request was already done),
- *   2. does the work,
+ *   2. does the work: payment status, ledger entries, webhook event in the outbox,
  *   3. stores the reply under the key,
  * all inside one transaction, so either all of it happens or none of it does.
  */
@@ -33,14 +34,17 @@ public class PaymentService {
     private final LedgerService ledger;
     private final PaymentSimulator simulator;
     private final IdempotencyService idempotency;
+    private final WebhookService webhooks;
     private final TransactionTemplate tx;
 
     public PaymentService(PaymentRepository payments, LedgerService ledger, PaymentSimulator simulator,
-                          IdempotencyService idempotency, PlatformTransactionManager txManager) {
+                          IdempotencyService idempotency, WebhookService webhooks,
+                          PlatformTransactionManager txManager) {
         this.payments = payments;
         this.ledger = ledger;
         this.simulator = simulator;
         this.idempotency = idempotency;
+        this.webhooks = webhooks;
         this.tx = new TransactionTemplate(txManager);
     }
 
@@ -72,9 +76,12 @@ public class PaymentService {
         // transaction (and its database connection) open across a network call would starve everyone else.
         PaymentSimulator.Result result = simulator.authorize(request.mockOutcome());
 
-        // Transaction 2: record the outcome and the reply under the key.
+        // Transaction 2: record the outcome, queue a webhook if it failed, and store the reply under the key.
         return tx.execute(status -> {
             Payment finished = payments.updateStatus(started.payment().id(), result.status(), result.failureReason());
+            if (PaymentStatus.FAILED.equals(finished.status())) {
+                webhooks.enqueue(WebhookService.PAYMENT_FAILED, finished, null);
+            }
             return idempotency.complete(merchantId, idempotencyKey, 201, finished);
         });
     }
@@ -99,6 +106,7 @@ public class PaymentService {
 
             ledger.postCapture(merchantId, payment.id(), payment.amount());
             Payment captured = payments.updateStatus(payment.id(), PaymentStatus.CAPTURED, null);
+            webhooks.enqueue(WebhookService.PAYMENT_CAPTURED, captured, null);
 
             return idempotency.complete(merchantId, idempotencyKey, 200, captured);
         });
@@ -136,6 +144,7 @@ public class PaymentService {
             long refundedAmount = payment.refundedAmount() + amount;
             String newStatus = refundedAmount == payment.amount() ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED;
             Payment updated = payments.updateRefunded(payment.id(), refundedAmount, newStatus);
+            webhooks.enqueue(WebhookService.PAYMENT_REFUNDED, updated, refund.id());
 
             return idempotency.complete(merchantId, idempotencyKey, 201, RefundResponse.of(refund, updated));
         });

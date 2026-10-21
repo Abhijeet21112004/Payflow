@@ -57,6 +57,10 @@ public class MerchantRepository {
                 apiKeyHash).stream().findFirst();
     }
 
+    public void updateWebhookUrl(UUID id, String webhookUrl) {
+        jdbc.update("UPDATE merchants SET webhook_url = ? WHERE id = ?", webhookUrl, id);
+    }
+
     public Optional<Merchant> findById(UUID id) {
         return jdbc.query("SELECT * FROM merchants WHERE id = ?", MERCHANT, id).stream().findFirst();
     }
