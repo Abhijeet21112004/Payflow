@@ -1,6 +1,12 @@
 # PayFlow — Build Specification (v2)
 
 > v2 replaces the original Node spec. Changes: Java/Spring stack, the concurrency fix targets the real race (payment status, not the account row), double-entry ledger, refunds modelled properly, idempotency on every money-moving endpoint, a transactional outbox for webhooks, and replay-safe webhook signatures.
+>
+> **As built** (differences from this plan; the code and README are the source of truth):
+> - Migrations are `V1` merchants, `V2` ledger, `V3` payments + refunds, `V4` the safety constraints (`UNIQUE (type, reference_id)`, `CHECK refunded_amount`), `V5` idempotency keys, `V6` webhook events. The constraints arrive in `V4` so that the `before-locking` tag really has no backstops.
+> - `idempotency_keys.response_body` is `TEXT`, not `JSONB`, so replays are byte-for-byte identical (JSONB reorders keys).
+> - A business error (e.g. `409 invalid_state`) rolls back the key reservation, so it isn't stored; retrying the same request gets the same error again, and nothing changes.
+> - The sample merchant uses its own `sample_merchant` schema in the same Postgres instead of a separate database.
 
 ---
 
