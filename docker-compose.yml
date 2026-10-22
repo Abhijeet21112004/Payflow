@@ -1,7 +1,13 @@
-# Local development database.
-# Start:  docker compose up -d
-# Stop:   docker compose down        (data is kept in the named volume)
-# Reset:  docker compose down -v     (deletes all data)
+# Local development.
+#
+# Database only (for running the apps from IntelliJ):
+#   docker compose up -d
+#
+# Everything (database + PayFlow API + sample merchant) in containers:
+#   docker compose --profile app up -d --build
+#
+# Stop:   docker compose --profile app down        (data is kept in the named volume)
+# Reset:  docker compose --profile app down -v     (deletes all data)
 services:
   postgres:
     image: postgres:17
@@ -19,6 +25,34 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+
+  api:
+    profiles: ["app"]
+    build: ./payflow-api
+    container_name: payflow-api
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/payflow
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-me-it-must-be-at-least-32-bytes-long}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Set PAYFLOW_WEBHOOK_SECRET (in a .env file next to this one) to the webhook_secret you got when
+  # registering a merchant, and set that merchant's webhook URL to http://sample-merchant:8081/webhooks/payflow
+  sample-merchant:
+    profiles: ["app"]
+    build: ./sample-merchant
+    container_name: payflow-sample-merchant
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/payflow
+      PAYFLOW_WEBHOOK_SECRET: ${PAYFLOW_WEBHOOK_SECRET:-}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   payflow-pgdata:
