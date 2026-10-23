@@ -52,6 +52,10 @@ flowchart LR
     receiver -->|"dedup on event id"| db
 ```
 
+### Database
+
+![PayFlow database tables and relationships](docs/database-diagram.svg)
+
 ### Payment lifecycle
 
 ```mermaid
